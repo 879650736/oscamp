@@ -81,4 +81,4 @@ axhal = { workspace = true }
 axio = "0.1"
 axerrno = "0.1"
 kspin = "0.1"
-hashbrown = "0.14"
+hashbrown = "0.15.2"

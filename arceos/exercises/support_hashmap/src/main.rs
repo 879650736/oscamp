@@ -5,7 +5,7 @@
 #[cfg(feature = "axstd")]
 extern crate axstd as std;
 
-use std::hash::HashMap;
+use std::hash1::HashMap;
 
 #[cfg_attr(feature = "axstd", no_mangle)]
 fn main() {
@@ -23,7 +23,7 @@ fn test_hashmap() {
     }
     for (k, v) in m.iter() {
         if let Some(k) = k.strip_prefix("key_") {
-            assert_eq!(k.parse::<u32>().unwrap(), *v);
+            assert_eq!(k.parse::<u32>().unwrap(), v);
         }
     }
     println!("test_hashmap() OK!");
