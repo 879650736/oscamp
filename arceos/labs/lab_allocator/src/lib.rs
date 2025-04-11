@@ -12,6 +12,7 @@ struct Block {
     size: usize,
     is_free: bool,
     next: Option<usize>, // Offset to next block
+    prev: Option<usize>,
 }
 
 pub struct LabByteAllocator {
@@ -41,27 +42,43 @@ impl LabByteAllocator {
         &mut *(addr as *mut Block)
     }
     
-    // Find a free block with first-fit strategy
     fn find_free_block(&self, size: usize, align: usize) -> Option<usize> {
         let mut current = self.first_block;
-        
+        let mut best_fit_block: Option<usize> = None;
+        let mut best_fit_waste = usize::MAX;
+
         while let Some(block_addr) = current {
             let block = unsafe { self.get_block(block_addr) };
-            
             if block.is_free {
                 let data_addr = block_addr + core::mem::size_of::<Block>();
                 let aligned_addr = (data_addr + align - 1) & !(align - 1);
                 let padding = aligned_addr - data_addr;
-                
+
                 if block.size >= size + padding {
-                    return Some(block_addr);
+                    // Calculate waste (padding + unused space)
+                    let waste = padding + (block.size - size - padding);
+                    if waste < best_fit_waste {
+                        best_fit_waste = waste;
+                        best_fit_block = Some(block_addr);
+                    }
                 }
             }
-            
             current = block.next;
         }
-        
-        None
+        best_fit_block
+    }
+    // New method to find the largest contiguous free block
+    fn largest_free_block(&self) -> usize {
+        let mut largest = 0;
+        let mut current = self.first_block;
+        while let Some(block_addr) = current {
+            let block = unsafe { self.get_block(block_addr) };
+            if block.is_free && block.size > largest {
+                largest = block.size;
+            }
+            current = block.next;
+        }
+        largest
     }
 }
 
@@ -79,6 +96,7 @@ impl BaseAllocator for LabByteAllocator {
                 size: size - core::mem::size_of::<Block>(),
                 is_free: true,
                 next: None,
+                prev: None,
             };
         }
         
@@ -86,6 +104,18 @@ impl BaseAllocator for LabByteAllocator {
     }
     
     fn add_memory(&mut self, start: usize, size: usize) -> AllocResult {
+        // Create new block
+        unsafe {
+            let new_block = self.get_block_mut(start);
+            *new_block = Block {
+                start,
+                size: size - core::mem::size_of::<Block>(),
+                is_free: true,
+                next: None,
+                prev: None,
+            };
+        }
+        
         // Find the last block
         let mut current = self.first_block;
         let mut last_block_addr = 0;
@@ -99,28 +129,22 @@ impl BaseAllocator for LabByteAllocator {
             current = block.next;
         }
         
-        // Create new block
-        unsafe {
-            let new_block = self.get_block_mut(start);
-            *new_block = Block {
-                start,
-                size: size - core::mem::size_of::<Block>(),
-                is_free: true,
-                next: None,
-            };
-        }
         
         // Link with the last block
         if last_block_addr != 0 {
             unsafe {
                 let last_block = self.get_block_mut(last_block_addr);
                 last_block.next = Some(start);
+                drop(last_block);
+                let new_block = self.get_block_mut(start);
+                new_block.prev = Some(last_block_addr);
             }
         } else {
             self.first_block = Some(start);
         }
         
         self.memory_size += size;
+        self.coalesce_blocks();
         Ok(())
     }
 }
@@ -128,17 +152,19 @@ impl BaseAllocator for LabByteAllocator {
 impl ByteAllocator for LabByteAllocator {
     fn alloc(&mut self, layout: Layout) -> AllocResult<NonNull<u8>> {
         let size = layout.size();
-        let align = layout.align();
+        let align = layout.align().max(8);
         
         if let Some(block_addr) = self.find_free_block(size, align) {
             let mut block_size;
             let mut block_next;
+            let mut block_prev;
             
             // Extract the information we need from the block first
             unsafe {
                 let block = self.get_block(block_addr);
                 block_size = block.size;
                 block_next = block.next;
+                block_prev = block.prev;
             }
             
             let data_addr = block_addr + core::mem::size_of::<Block>();
@@ -146,7 +172,7 @@ impl ByteAllocator for LabByteAllocator {
             let padding = aligned_addr - data_addr;
             
             // Split block if necessary (if remaining space is large enough)
-            if block_size >= size + padding + core::mem::size_of::<Block>() + 8 {
+            if block_size >= size + padding + core::mem::size_of::<Block>() + align {
                 let new_block_addr = block_addr + core::mem::size_of::<Block>() + size + padding;
                 
                 // Initialize new block 
@@ -157,6 +183,7 @@ impl ByteAllocator for LabByteAllocator {
                         size: block_size - size - padding - core::mem::size_of::<Block>(),
                         is_free: true,
                         next: block_next,
+                        prev: Some(block_addr),
                     };
                 }
                 
@@ -176,7 +203,7 @@ impl ByteAllocator for LabByteAllocator {
             }
             
             self.used_bytes += size + padding;
-            
+            self.coalesce_blocks();
             Ok(NonNull::new(aligned_addr as *mut u8).unwrap())
         } else {
             Err(allocator::AllocError::NoMemory)
@@ -239,45 +266,59 @@ impl LabByteAllocator {
     // Coalesce adjacent free blocks to reduce fragmentation
     fn coalesce_blocks(&mut self) {
         let mut current = self.first_block;
-        
+
         while let Some(block_addr) = current {
-            let is_free;
-            let next_block;
-            
-            unsafe {
-                let block = self.get_block(block_addr);
-                is_free = block.is_free;
-                next_block = block.next;
+            let block = unsafe { self.get_block(block_addr) };
+            if !block.is_free {
+                current = block.next;
+                continue;
             }
-            
-            if is_free {
-                // Check if next block is also free
-                if let Some(next_addr) = next_block {
-                    let next_is_free;
-                    let next_size;
-                    let next_next;
-                    
+
+            // Try to merge with next block
+            if let Some(next_addr) = block.next {
+                let next_block = unsafe { self.get_block(next_addr) };
+                if next_block.is_free {
+                    let next_size = next_block.size;
+                    let next_next = next_block.next;
+
                     unsafe {
-                        let next = self.get_block(next_addr);
-                        next_is_free = next.is_free;
-                        next_size = next.size;
-                        next_next = next.next;
-                    }
-                    
-                    if next_is_free {
-                        // Coalesce with next block
-                        unsafe {
-                            let block = self.get_block_mut(block_addr);
-                            block.size += next_size + core::mem::size_of::<Block>();
-                            block.next = next_next;
+                        let block = self.get_block_mut(block_addr);
+                        block.size += next_size + core::mem::size_of::<Block>();
+                        block.next = next_next;
+                        if let Some(next_next_addr) = next_next {
+                            let next_next_block = self.get_block_mut(next_next_addr);
+                            next_next_block.prev = Some(block_addr);
                         }
-                        // Don't advance current, as we might be able to coalesce with the next block too
-                        continue;
                     }
+                    // Don't advance current, check again for further merges
+                    continue;
                 }
             }
-            
-            current = next_block;
+
+            // Try to merge with previous block
+            if let Some(prev_addr) = block.prev {
+                let prev_block = unsafe { self.get_block(prev_addr) };
+                if prev_block.is_free {
+                    unsafe {
+                        let block = self.get_block_mut(block_addr);
+                        let block_size = block.size;
+                        let block_next = block.next;
+
+                        let prev_block = self.get_block_mut(prev_addr);
+                        prev_block.size += block_size + core::mem::size_of::<Block>();
+                        prev_block.next = block_next;
+
+                        if let Some(next_addr) = block_next {
+                            let next_block = self.get_block_mut(next_addr);
+                            next_block.prev = Some(prev_addr);
+                        }
+                    }
+                    // Continue with current block, as prev_block has been extended
+                    continue;
+                }
+            }
+
+            current = unsafe { self.get_block(block_addr).next };
         }
-    }
+    }    
 }
