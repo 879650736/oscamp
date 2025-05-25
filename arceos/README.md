@@ -103,6 +103,27 @@ make A=examples/httpserver ARCH=aarch64 LOG=info SMP=4 run NET=y
 
 Note that the `NET=y` argument is required to enable the network device in QEMU. These arguments (`BLK`, `GRAPHIC`, etc.) only take effect at runtime not build time.
 
+## Build and Run through Docker
+Install [Docker](https://www.docker.com/) in your system.
+
+Then build all dependencies through provided dockerfile:
+```bash
+docker build -t oscamp -f Dockerfile .
+```
+Create a container and build/run app:
+``` bash
+docker run -it --privileged \
+    -v ~/oscamp:/oscamp \
+    -w /oscamp/arceos \
+  oscamp bash
+```
+"By default, Docker containers are isolated, and for security reasons, they run with a restricted set of Linux Capabilities. The `make disk_img` rule requires the `mount` command, and the `mount` command (as well as `umount`) needs the `CAP_SYS_ADMIN` Linux Capability. By default, Docker containers do not possess this capability, even if you are the `root` user inside the container.
+
+**Solution:**
+Use the `--privileged` flag (not recommended for production environments, but convenient for development and debugging).
+This flag grants the container almost all Linux Capabilities, including `CAP_SYS_ADMIN`, allowing it to perform operations typically reserved for the `root` user, such as mounting file systems."
+# Now build/run app in the container
+make A=examples/helloworld ARCH=aarch64 run
 ## How to write ArceOS apps
 
 You can write and build your custom applications outside the ArceOS source tree.
