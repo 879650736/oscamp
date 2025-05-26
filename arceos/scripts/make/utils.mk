@@ -8,13 +8,10 @@ WHITE_C := \033[37m
 END_C := \033[0m
 
 ifeq ($(ARCH), x86_64)
-  TARGET ?= x86_64-unknown-none
   COUNT ?= 64
 else ifeq ($(ARCH), riscv64)
-  TARGET ?= riscv64gc-unknown-none-elf
   COUNT ?= 32
 else ifeq ($(ARCH), aarch64)
-  TARGET ?= aarch64-unknown-none-softfloat
   COUNT ?= 64
 else
   $(error "ARCH" must be one of "x86_64", "riscv64", or "aarch64")
@@ -37,7 +34,7 @@ endef
 
 
 define mk_pflash
-  @RUSTFLAGS="" cargo build -p origin  --target $(TARGET) --release
+  @RUSTFLAGS="" cargo build -p origin  --target $(AX_TARGET) --release
   @rust-objcopy --binary-architecture=$(ARCH) --strip-all -O binary ./target/$(TARGET)/release/origin /tmp/origin.bin
   @printf "pfld\00\00\00\01" > /tmp/prefix.bin
   @printf "%08x" `stat -c "%s" /tmp/origin.bin` | xxd -r -ps > /tmp/size.bin
