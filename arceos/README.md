@@ -43,6 +43,8 @@ Install `libclang-dev`:
 sudo apt install libclang-dev
 ```
 
+Currently, the aarch64 architecture supports u_* and m_* under arceos/tour, but m_3_* requires libclang-*-dev version less than or equal to 16. You can use conda to generate a specified clangdev version for successful compilation. Or use dockerfile directly.
+
 Download & install [musl](https://musl.cc) toolchains:
 
 ```bash
@@ -72,6 +74,8 @@ brew install qemu
 
 Other systems and arch please refer to [Qemu Download](https://www.qemu.org/download/#linux)
 
+For qemu version, it is recommended to use version 9.2.0 or later, otherwise unexpected problems may occur.
+
 ### 2. Build & Run
 
 ```bash
@@ -80,8 +84,8 @@ make A=path/to/app ARCH=<arch> LOG=<log>
 # e.g. run app in arceos directory
 make run A=path/to/app ARCH=<arch> LOG=<log>
 # e.g. build&run oscamp tour app tour/u_1_0
-make pflash_img
-make disk_img
+make pflash_img ARCH=<arch> 
+make disk_img ARCH=<arch> 
 make run A=tour/u_1_0
 # e.g. try to build&run oscamp tour apps
 ./test_tour.sh
@@ -93,6 +97,8 @@ Where `path/to/app` is the relative path to the application. Examples applicatio
 
 `<log>` should be one of `off`, `error`, `warn`, `info`, `debug`, `trace`.
 
+If the above command does not specify ARCH, it defaults to risc-V64.
+
 More arguments and targets can be found in [Makefile](Makefile).
 
 For example, to run the [httpserver](examples/httpserver/) on `qemu-system-aarch64` with 4 cores and log level `info`:
@@ -102,6 +108,31 @@ make A=examples/httpserver ARCH=aarch64 LOG=info SMP=4 run NET=y
 ```
 
 Note that the `NET=y` argument is required to enable the network device in QEMU. These arguments (`BLK`, `GRAPHIC`, etc.) only take effect at runtime not build time.
+
+
+For example, the complete process for tour/m_1_0, aarch64 architecture:
+``` bash
+make
+make ARCH=aarch64
+rm -f pflash.img
+rm -f disk.img
+make pflash_img ARCH=aarch64
+make disk_img ARCH=aarch64
+make payload ARCH=aarch64
+./update_disk.sh ./payload/origin/origin
+make run A=tour/m_1_0 ARCH=aarch64 LOG=debug BLK=y
+```
+For tour/m_1_0,risc-V64 architecture:
+``` bash
+make
+rm -f pflash.img
+rm -f disk.img
+make pflash_img
+make disk_img
+make payload
+./update_disk.sh ./payload/origin/origin
+make run A=tour/m_1_0 LOG=debug BLK=y
+```
 
 ## Build and Run through Docker
 Install [Docker](https://www.docker.com/) in your system.
