@@ -46,7 +46,7 @@ run_test() {
         ./update_disk.sh "$update_disk_file" >/dev/null 2>&1
     fi
 
-    make run A="$app" BLK="$blk" >"$tmp_file" 2>&1
+    make run A="$app" BLK="$blk" ARCH="$arch" >"$tmp_file" 2>&1
     local OUTPUT=$?
 
     local SEARCH=0
@@ -86,6 +86,21 @@ run_test "riscv64" "tour/h_1_0" "y" "y" "payload/skernel/skernel" "" "Shutdown v
 run_test "riscv64" "tour/h_2_0" "y" "y" "tour/u_3_0/u_3_0_riscv64-qemu-virt.bin" "make A=tour/u_3_0/" "Got pflash magic: pfld"
 run_test "riscv64" "tour/h_3_0" "y" "y" "tour/u_6_0/u_6_0_riscv64-qemu-virt.bin" "make A=tour/u_6_0/" "Multi-task(Preemptible) ok!"
 run_test "riscv64" "tour/h_4_0" "y" "y" "tour/m_1_1/m_1_1_riscv64-qemu-virt.bin" "make A=tour/m_1_1" "monolithic kernel exit [Some(0)] normally!" "handle_syscall ..."
+make clean >/dev/null 2>&1
+run_test "aarch64" "tour/u_1_0" "n" "" "" "" "Hello, Arceos!"
+run_test "aarch64" "tour/u_2_0" "n" "" "" "" "Alloc Vec" "Alloc String:"
+run_test "aarch64" "tour/u_3_0" "n" "" "" "" "Try to access dev region" "Got pflash magic: pfld"
+run_test "aarch64" "tour/u_4_0" "n" "" "" "" "Got pflash magic: pfld" "Multi-task OK!" "Spawned-thread ..."
+run_test "aarch64" "tour/u_5_0" "n" "" "" "" "worker2 ok!" "worker1 ok!" "Multi-task OK!"
+run_test "aarch64" "tour/u_6_0" "n" "" "" "" "Multi-task(Preemptible) ok!"
+run_test "aarch64" "tour/u_6_1" "n" "" "" "" "worker2 ok!" "worker1 ok!" "WaitQ ok!"
+run_test "aarch64" "tour/u_7_0" "y" "" "" "" "[mkfs.fat]" "worker1 ok!" "Load app from disk ok!"
+run_test "aarch64" "tour/u_8_0" "y" "" "" "" "worker1 checks code:" "worker1 ok!" "Load app from disk ok!"
+run_test "aarch64" "tour/m_1_0" "y" "y" "payload/origin/origin" "" "monolithic kernel exit [Some(0)] normally!"
+run_test "aarch64" "tour/m_1_1" "y" "y" "payload/origin/origin" "" "monolithic kernel exit [Some(0)] normally!"
+run_test "aarch64" "tour/m_2_0" "y" "y" "payload/origin/origin" "" "monolithic kernel exit [Some(0)] normally!"
+run_test "aarch64" "tour/m_3_0" "y" "y" "payload/hello_c/hello" "" "Hello, UserApp!" "monolithic kernel exit [Some(0)] normally!"
+run_test "aarch64" "tour/m_3_1" "y" "y" "payload/fileops_c/fileops" "" "FileOps ok!" "monolithic kernel exit [Some(0)] normally!"
 
 if [[ -s Error.log ]]; then
     cat Error.log # Print the content of Error.log
