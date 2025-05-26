@@ -50,8 +50,8 @@ run_test() {
     local OUTPUT=$?
 
     local SEARCH=0
-    if [ "${#args[@]}" -gt 5 ]; then
-        if ! search_texts "${args[@]:5}"; then
+    if [ "${#args[@]}" -gt 6 ]; then
+        if ! search_texts "${args[@]:6}"; then
             SEARCH=1
         fi
     fi
@@ -84,8 +84,8 @@ run_test "riscv64" "tour/m_3_0" "y" "y" "payload/hello_c/hello" "" "Hello, UserA
 run_test "riscv64" "tour/m_3_1" "y" "y" "payload/fileops_c/fileops" "" "FileOps ok!" "monolithic kernel exit [Some(0)] normally!"
 run_test "riscv64" "tour/h_1_0" "y" "y" "payload/skernel/skernel" "" "Shutdown vm normally!" "Hypervisor ok!"
 run_test "riscv64" "tour/h_2_0" "y" "y" "tour/u_3_0/u_3_0_riscv64-qemu-virt.bin" "make A=tour/u_3_0/" "Got pflash magic: pfld"
- run_test "riscv64" "tour/h_3_0" "y" "y" "tour/u_6_0/u_6_0_riscv64-qemu-virt.bin" "make A=tour/u_6_0/" "Multi-task(Preemptible) ok!"
- run_test "riscv64" "tour/h_4_0" "y" "y" "tour/m_1_1/m_1_1_riscv64-qemu-virt.bin" "make A=tour/m_1_1" "monolithic kernel exit [Some(0)] normally!" "handle_syscall ..."
+run_test "riscv64" "tour/h_3_0" "y" "y" "tour/u_6_0/u_6_0_riscv64-qemu-virt.bin" "make A=tour/u_6_0/" "Multi-task(Preemptible) ok!"
+run_test "riscv64" "tour/h_4_0" "y" "y" "tour/m_1_1/m_1_1_riscv64-qemu-virt.bin" "make A=tour/m_1_1" "monolithic kernel exit [Some(0)] normally!" "handle_syscall ..."
 
 if [[ -s Error.log ]]; then
     cat Error.log # Print the content of Error.log
